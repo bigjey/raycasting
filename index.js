@@ -53,6 +53,7 @@ function update(dt) {
     x: Math.cos(radians),
     y: Math.sin(radians),
   };
+  let moveDirection = 0;
 
   if (keysPressed["KeyA"]) {
     viewAngle -= TURN_SPEED * dt;
@@ -61,12 +62,30 @@ function update(dt) {
     viewAngle += TURN_SPEED * dt;
   }
   if (keysPressed["KeyW"]) {
-    //   move forward
-    playerPos.x += viewDirection.x * PLAYER_SPEED * dt;
-    playerPos.y += viewDirection.y * PLAYER_SPEED * dt;
+    moveDirection = 1;
   } else if (keysPressed["KeyS"]) {
-    playerPos.x -= viewDirection.x * PLAYER_SPEED * dt;
-    playerPos.y -= viewDirection.y * PLAYER_SPEED * dt;
+    moveDirection = -1;
+  }
+
+  if (moveDirection !== 0) {
+    const newPosX =
+      playerPos.x + moveDirection * viewDirection.x * PLAYER_SPEED * dt;
+    const newPosY =
+      playerPos.y + moveDirection * viewDirection.y * PLAYER_SPEED * dt;
+
+    const tileX = Math.floor(playerPos.x / TILE_SIZE);
+    const tileY = Math.floor(playerPos.y / TILE_SIZE);
+
+    const newTileX = Math.floor(newPosX / TILE_SIZE);
+    const newTileY = Math.floor(newPosY / TILE_SIZE);
+
+    if (grid[newTileY][tileX] === 0) {
+      playerPos.y = newPosY;
+    }
+
+    if (grid[tileY][newTileX] === 0) {
+      playerPos.x = newPosX;
+    }
   }
 }
 
@@ -122,19 +141,15 @@ function render() {
     canvas.height / 2
   );
 
-  const hits = [];
   for (let i = 0; i < RESOLUTION; i++) {
-    const radians = degToRad(
-      viewAngle + (i - RESOLUTION / 2) * (FOV / RESOLUTION)
-    );
+    const rayAngle = degToRad((i - RESOLUTION / 2) * (FOV / RESOLUTION));
 
-    const viewDirection = {
-      x: Math.cos(radians),
-      y: Math.sin(radians),
+    const rayDirection = {
+      x: Math.cos(degToRad(viewAngle) + rayAngle),
+      y: Math.sin(degToRad(viewAngle) + rayAngle),
     };
 
-    const hit = castRay(viewDirection);
-    hits.push(hit);
+    const hit = castRay(rayDirection);
 
     ctx.strokeStyle = "#f006";
     ctx.beginPath();
@@ -146,33 +161,17 @@ function render() {
     ctx.closePath();
     ctx.stroke();
 
-    if (hit) {
-      ctx.fillStyle = "orange";
-      ctx.beginPath();
-      ctx.arc(hit.x, hit.y, 3, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
+    ctx.fillStyle = "orange";
+    ctx.beginPath();
+    ctx.arc(hit.x, hit.y, 3, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
 
-  for (let i = 0; i < hits.length; i++) {
-    const hit = hits[i];
-    // console.log(hit.distance, hit.perpDistance);
-    const beta = angleBetweenVectors(
-      { x: playerPos.x - hit.x, y: playerPos.y - hit.y },
-      viewDirection
-    );
-    const p =
-      (hit.x - playerPos.x) * Math.cos(beta) +
-      (hit.y - playerPos.y) * Math.sin(beta);
+    const beta = rayAngle;
+    const d = hit.distance * Math.cos(beta);
 
-    // console.log(hit.distance * TILE_SIZE, p);
-
-    const wallHeight = Math.max(
-      GRID_SIZE.y * TILE_SIZE - hit.perpDistance * TILE_SIZE,
-      40
-    );
-    const c = 255 - 255 * (hit.perpDistance / 30);
+    const wallHeight = (GRID_SIZE.y * TILE_SIZE) / d;
+    const c = 255 - 255 * (d / 15);
 
     ctx.fillStyle = `rgba(${c},${c},${c})`;
     ctx.fillRect(
@@ -223,7 +222,6 @@ function castRay(direction) {
 
   let hit = false;
   let distance;
-  let perpDistance;
 
   if (direction.x < 0) {
     stepX = -1;
@@ -247,12 +245,10 @@ function castRay(direction) {
       distance = distanceX;
       distanceX += dx;
       tileX += stepX;
-      perpDistance = (tileX - posX + (1 - stepX) / 2) / direction.x;
     } else {
       distance = distanceY;
       distanceY += dy;
       tileY += stepY;
-      perpDistance = (tileY - posY + (1 - stepY) / 2) / direction.y;
     }
 
     if (grid[tileY][tileX] === 1) {
@@ -261,7 +257,7 @@ function castRay(direction) {
       const hitX = (posX + direction.x * distance) * TILE_SIZE;
       const hitY = (posY + direction.y * distance) * TILE_SIZE;
 
-      return { x: hitX, y: hitY, distance, perpDistance };
+      return { x: hitX, y: hitY, distance };
     }
 
     iterations++;
