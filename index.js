@@ -3,11 +3,11 @@ const ctx = canvas.getContext("2d");
 
 const GRID_SIZE = { x: 10, y: 10 };
 const TILE_SIZE = 64;
-const RESOLUTION = 64;
+const RESOLUTION = 200;
 const STRIP_WIDTH = (GRID_SIZE.x * TILE_SIZE) / RESOLUTION;
 
 const PLAYER_SPEED = 150;
-const TURN_SPEED = 90;
+const TURN_SPEED = 180;
 const MAX_VIEW_DISTANCE = 2000;
 const FOV = 70;
 
@@ -17,19 +17,22 @@ canvas.height = GRID_SIZE.y * TILE_SIZE;
 document.body.appendChild(canvas);
 
 ctx.lineWidth = 1;
+ctx.imageSmoothingEnabled = false;
+
+const sprites = {};
 
 // prettier-ignore
 const grid = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 1, 1, 1, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 1, 0, 0, 0, 0, 2],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-    [1, 0, 0, 0, 1, 1, 1, 1, 0, 1],
+    [1, 0, 0, 1, 2, 1, 1, 1, 0, 1],
     [1, 0, 0, 0, 0, 0, 1, 0, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1],
 ];
 
 const playerPos = { x: 110, y: 540 };
@@ -171,10 +174,43 @@ function render() {
     const d = hit.distance * Math.cos(beta);
 
     const wallHeight = (GRID_SIZE.y * TILE_SIZE) / d;
-    const c = 255 - 255 * (d / 15) - (hit.side === "h" ? 20 : 0);
+    const wallColor = 255 - 255 * (d / 15) - (hit.side === "h" ? 20 : 0);
 
-    ctx.fillStyle = `rgba(${c},${c},${c})`;
-    ctx.fillRect(
+    // ctx.fillStyle = `rgb(${wallColor}, ${wallColor}, ${wallColor})`;
+    // ctx.fillRect(
+    //   GRID_SIZE.x * TILE_SIZE + i * STRIP_WIDTH,
+    //   (GRID_SIZE.y * TILE_SIZE) / 2 - wallHeight / 2,
+    //   STRIP_WIDTH,
+    //   wallHeight
+    // );
+
+    let texX =
+      hit.side === "h"
+        ? (hit.y % TILE_SIZE) / TILE_SIZE
+        : (hit.x % TILE_SIZE) / TILE_SIZE;
+
+    let sprite;
+    switch (hit.tile) {
+      case 1: {
+        sprite = sprites[`brick_wall_${hit.side}`];
+        break;
+      }
+      case 2: {
+        sprite = sprites[`eagle_${hit.side}`];
+        break;
+      }
+      default: {
+      }
+    }
+
+    texX = Math.floor(texX * sprite.width);
+
+    ctx.drawImage(
+      sprite,
+      texX,
+      0,
+      1,
+      sprite.height,
       GRID_SIZE.x * TILE_SIZE + i * STRIP_WIDTH,
       (GRID_SIZE.y * TILE_SIZE) / 2 - wallHeight / 2,
       STRIP_WIDTH,
@@ -254,18 +290,34 @@ function castRay(direction) {
       tileY += stepY;
     }
 
-    if (grid[tileY][tileX] === 1) {
+    if (grid[tileY][tileX] !== 0) {
       hit = true;
 
       const hitX = (posX + direction.x * distance) * TILE_SIZE;
       const hitY = (posY + direction.y * distance) * TILE_SIZE;
 
-      return { x: hitX, y: hitY, distance, side };
+      return { x: hitX, y: hitY, distance, side, tile: grid[tileY][tileX] };
     }
 
     iterations++;
   }
 }
+
+const loadSprite = async (path) => {
+  return new Promise((res, rej) => {
+    const img = new Image();
+
+    img.addEventListener("load", () => {
+      res(img);
+    });
+
+    img.addEventListener("error", () => {
+      rej(`${path}: not loaded`);
+    });
+
+    img.src = path;
+  });
+};
 
 const angleBetweenVectors = (v1, v2) => Math.atan2(v2.y - v1.y, v2.x - v1.x);
 
@@ -277,4 +329,24 @@ document.addEventListener("keydown", function (e) {
   keysPressed[e.code] = true;
 });
 
-tick();
+(async () => {
+  let loaded = false;
+  try {
+    sprites["wall_h"] = await loadSprite("./assets/wall_h.png");
+    sprites["wall_v"] = await loadSprite("./assets/wall_v.png");
+    sprites["brick_wall_h"] = await loadSprite("./assets/brick_wall_h.png");
+    sprites["brick_wall_v"] = await loadSprite("./assets/brick_wall_v.png");
+    sprites["eagle_h"] = await loadSprite("./assets/eagle_h.png");
+    sprites["eagle_v"] = await loadSprite("./assets/eagle_v.png");
+    loaded = true;
+  } catch (e) {
+    console.log(e);
+  }
+
+  if (loaded) {
+    console.log(sprites);
+    tick();
+  } else {
+    console.log("not loaded");
+  }
+})();
