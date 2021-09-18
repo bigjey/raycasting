@@ -106,7 +106,7 @@ function render() {
   ctx.fillStyle = "#777";
   for (let y = 0; y < GRID_SIZE.y; y++) {
     for (let x = 0; x < GRID_SIZE.x; x++) {
-      if (grid[y][x] === 1) {
+      if (grid[y][x] !== 0) {
         ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       }
     }
