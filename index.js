@@ -1,4 +1,4 @@
-const canvas = document.createElement("canvas");
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const GRID_SIZE = { x: 10, y: 10 };
@@ -13,8 +13,6 @@ const FOV = 70;
 
 canvas.width = GRID_SIZE.x * TILE_SIZE * 2;
 canvas.height = GRID_SIZE.y * TILE_SIZE;
-
-document.body.appendChild(canvas);
 
 ctx.lineWidth = 1;
 ctx.imageSmoothingEnabled = false;
