@@ -23,16 +23,16 @@ const sprites = {};
 
 // prettier-ignore
 const grid = [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 1, 1, 1, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 1, 0, 0, 0, 0, 2],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-    [1, 0, 0, 1, 2, 1, 1, 1, 0, 1],
-    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1],
+    [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+    [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+    [3, 0, 1, 2, 1, 1, 0, 0, 0, 3],
+    [3, 0, 0, 0, 0, 1, 0, 0, 0, 2],
+    [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+    [3, 0, 0, 0, 0, 0, 1, 0, 0, 3],
+    [3, 0, 0, 1, 2, 1, 1, 1, 0, 3],
+    [3, 0, 0, 0, 0, 0, 1, 0, 0, 3],
+    [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+    [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
 ];
 
 const playerPos = { x: 110, y: 540 };
@@ -134,6 +134,17 @@ function render() {
   // ctx.fillStyle = grd;
   // ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
 
+  // view ray
+  // ctx.strokeStyle = "#0f0";
+  // ctx.beginPath();
+  // ctx.moveTo(playerPos.x, playerPos.y);
+  // ctx.lineTo(
+  //   playerPos.x + viewDirection.x * MAX_VIEW_DISTANCE,
+  //   playerPos.y + viewDirection.y * MAX_VIEW_DISTANCE
+  // );
+  // ctx.closePath();
+  // ctx.stroke();
+
   ctx.fillStyle = "#383838";
   ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height / 2);
   ctx.fillStyle = "#707070";
@@ -199,6 +210,10 @@ function render() {
         sprite = sprites[`eagle_${hit.side}`];
         break;
       }
+      case 3: {
+        sprite = sprites[`wall_${hit.side}`];
+        break;
+      }
       default: {
       }
     }
@@ -217,16 +232,6 @@ function render() {
       wallHeight
     );
   }
-
-  ctx.strokeStyle = "#f0f4";
-  ctx.beginPath();
-  ctx.moveTo(playerPos.x, playerPos.y);
-  ctx.lineTo(
-    playerPos.x + viewDirection.x * MAX_VIEW_DISTANCE,
-    playerPos.y + viewDirection.y * MAX_VIEW_DISTANCE
-  );
-  ctx.closePath();
-  ctx.stroke();
 
   ctx.fillStyle = "green";
   ctx.beginPath();
