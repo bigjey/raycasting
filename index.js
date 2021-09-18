@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const GRID_SIZE = { x: 10, y: 10 };
 const TILE_SIZE = 64;
-const RESOLUTION = 32;
+const RESOLUTION = 64;
 const STRIP_WIDTH = (GRID_SIZE.x * TILE_SIZE) / RESOLUTION;
 
 const PLAYER_SPEED = 150;
@@ -171,7 +171,7 @@ function render() {
     const d = hit.distance * Math.cos(beta);
 
     const wallHeight = (GRID_SIZE.y * TILE_SIZE) / d;
-    const c = 255 - 255 * (d / 15);
+    const c = 255 - 255 * (d / 15) - (hit.side === "h" ? 20 : 0);
 
     ctx.fillStyle = `rgba(${c},${c},${c})`;
     ctx.fillRect(
@@ -240,13 +240,16 @@ function castRay(direction) {
   }
 
   let iterations = 0;
+  let side;
   while (!hit && iterations < 1000) {
     if (distanceX < distanceY) {
       distance = distanceX;
+      side = "h";
       distanceX += dx;
       tileX += stepX;
     } else {
       distance = distanceY;
+      side = "v";
       distanceY += dy;
       tileY += stepY;
     }
@@ -257,7 +260,7 @@ function castRay(direction) {
       const hitX = (posX + direction.x * distance) * TILE_SIZE;
       const hitY = (posY + direction.y * distance) * TILE_SIZE;
 
-      return { x: hitX, y: hitY, distance };
+      return { x: hitX, y: hitY, distance, side };
     }
 
     iterations++;
