@@ -17,7 +17,9 @@ canvas.height = GRID_SIZE.y * TILE_SIZE;
 ctx.lineWidth = 1;
 ctx.imageSmoothingEnabled = false;
 
+const textures = {};
 const sprites = {};
+const animations = {};
 
 // prettier-ignore
 const grid = [
@@ -48,6 +50,17 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+const ENEMY_STATE = {
+  IDLE: 1,
+  WALK: 2,
+  HIT: 3,
+  DEATH: 4,
+  ALERT: 5,
+  SHOOT: 6,
+};
+
+let enemy;
+
 function update(dt) {
   const radians = degToRad(viewAngle);
   const viewDirection = {
@@ -57,11 +70,33 @@ function update(dt) {
   let moveDirection = 0;
 
   if (keysPressed["KeyA"]) {
-    viewAngle -= TURN_SPEED * dt;
+    viewAngle = (viewAngle - TURN_SPEED * dt + 360) % 360;
   }
+
   if (keysPressed["KeyD"]) {
-    viewAngle += TURN_SPEED * dt;
+    viewAngle = (viewAngle + TURN_SPEED * dt + 360) % 360;
   }
+
+  if (keysPressed["KeyT"]) {
+    enemy.setState(ENEMY_STATE.IDLE);
+  }
+
+  if (keysPressed["KeyY"]) {
+    enemy.setState(ENEMY_STATE.ALERT);
+  }
+
+  if (keysPressed["KeyU"]) {
+    enemy.setState(ENEMY_STATE.SHOOT);
+  }
+
+  if (keysPressed["KeyI"]) {
+    enemy.setState(ENEMY_STATE.HIT);
+  }
+
+  if (keysPressed["KeyO"]) {
+    enemy.setState(ENEMY_STATE.DEATH);
+  }
+
   if (keysPressed["KeyW"]) {
     moveDirection = 1;
   } else if (keysPressed["KeyS"]) {
@@ -69,6 +104,8 @@ function update(dt) {
   }
 
   if (moveDirection !== 0) {
+    enemy.setState(ENEMY_STATE.WALK);
+
     const newPosX =
       playerPos.x + moveDirection * viewDirection.x * PLAYER_SPEED * dt;
     const newPosY =
@@ -88,6 +125,8 @@ function update(dt) {
       playerPos.x = newPosX;
     }
   }
+
+  enemy.update();
 }
 
 function render() {
@@ -201,15 +240,15 @@ function render() {
     let sprite;
     switch (hit.tile) {
       case 1: {
-        sprite = sprites[`brick_wall_${hit.side}`];
+        sprite = textures[`brick_wall_${hit.side}`];
         break;
       }
       case 2: {
-        sprite = sprites[`eagle_${hit.side}`];
+        sprite = textures[`eagle_${hit.side}`];
         break;
       }
       case 3: {
-        sprite = sprites[`wall_${hit.side}`];
+        sprite = textures[`wall_${hit.side}`];
         break;
       }
       default: {
@@ -236,6 +275,8 @@ function render() {
   ctx.arc(playerPos.x, playerPos.y, 16, 0, Math.PI * 2);
   ctx.closePath();
   ctx.fill();
+
+  enemy.render(640, -20, 640, 640);
 }
 
 function degToRad(deg) {
@@ -306,7 +347,7 @@ function castRay(direction) {
   }
 }
 
-const loadSprite = async (path) => {
+const loadTexture = async (path) => {
   return new Promise((res, rej) => {
     const img = new Image();
 
@@ -322,6 +363,196 @@ const loadSprite = async (path) => {
   });
 };
 
+const loadSprite = async (path, countX, countY, sizeX, sizeY, gapX, gapY) => {
+  return new Promise((res, rej) => {
+    const img = new Image();
+
+    img.addEventListener("load", () => {
+      const sprite = {
+        img,
+        countX,
+        countY,
+        sizeX,
+        sizeY,
+        gapX,
+        gapY,
+      };
+      res(sprite);
+    });
+
+    img.addEventListener("error", () => {
+      rej(`${path}: not loaded`);
+    });
+
+    img.src = path;
+  });
+};
+
+const renderSprite = (sprite, offsetX, offsetY, x, y, w, h) => {
+  const image = sprite.img;
+  const sx = offsetX * sprite.sizeX + offsetX * sprite.gapX;
+  const sy = offsetY * sprite.sizeY + offsetY * sprite.gapY;
+  const sWidth = sprite.sizeX;
+  const sHeight = sprite.sizeY;
+
+  ctx.drawImage(image, sx, sy, sWidth, sHeight, x, y, w, h);
+};
+
+const createAnimation = (sprite, frames) => {
+  return {
+    sprite,
+    frames,
+  };
+};
+
+class Animator {
+  constructor() {
+    this.speed = 0;
+    this.currentFrame = 0;
+    this.animation = null;
+    this.started = 0;
+    this.totalFrames = 0;
+    this.loop = false;
+  }
+
+  setAnimation(animation, options = {}) {
+    const { speed = 1000, loop = true, reset = true } = options;
+
+    this.animation = animation;
+    this.speed = speed;
+    this.loop = loop;
+
+    if (reset) {
+      this.currentFrame = 0;
+      this.started = Date.now();
+    }
+
+    this.totalFrames = this.animation.frames.length;
+  }
+
+  update() {
+    if (!this.animation) return;
+
+    const t = Date.now() - this.started;
+
+    this.currentFrame = Math.floor(t / this.speed);
+
+    if (!this.loop && this.currentFrame > this.totalFrames - 1) {
+      this.currentFrame = this.totalFrames - 1;
+    }
+  }
+
+  render(x, y, w, h) {
+    if (!this.animation) return;
+
+    renderSprite(
+      this.animation.sprite,
+      this.animation.frames[this.currentFrame % this.totalFrames][0],
+      this.animation.frames[this.currentFrame % this.totalFrames][1],
+      x,
+      y,
+      w,
+      h
+    );
+  }
+}
+
+class Enemy1 {
+  constructor() {
+    this.setState(ENEMY_STATE.IDLE);
+
+    this.animator = new Animator();
+    this.animator.setAnimation(animations["enemy_2_death"], {
+      speed: 200,
+      loop: false,
+    });
+  }
+
+  update() {
+    let d;
+    switch (Math.floor(((viewAngle + 22.5 + 360) % 360) / 45)) {
+      case 0:
+        d = "e";
+        break;
+      case 1:
+        d = "se";
+        break;
+      case 2:
+        d = "s";
+        break;
+      case 3:
+        d = "sw";
+        break;
+      case 4:
+        d = "w";
+        break;
+      case 5:
+        d = "nw";
+        break;
+      case 6:
+        d = "n";
+        break;
+      case 7:
+        d = "ne";
+        break;
+      default:
+        d = "s";
+    }
+
+    switch (this.state) {
+      case ENEMY_STATE.WALK:
+        this.animator.setAnimation(animations["enemy_2_walk_" + d], {
+          speed: 200,
+          reset: false,
+        });
+        break;
+      case ENEMY_STATE.IDLE:
+        this.animator.setAnimation(animations["enemy_2_idle_" + d], {
+          speed: 200,
+          reset: false,
+        });
+        break;
+    }
+
+    this.animator.update();
+  }
+
+  render(x, y, w, h) {
+    this.animator.render(x, y, w, h);
+  }
+
+  setState(state) {
+    this.state = state;
+
+    switch (state) {
+      case ENEMY_STATE.ALERT:
+        this.animator.setAnimation(animations["enemy_2_alert"], {
+          speed: 200,
+          loop: false,
+        });
+        break;
+      case ENEMY_STATE.DEATH:
+        this.animator.setAnimation(animations["enemy_2_death"], {
+          speed: 200,
+          loop: false,
+        });
+        break;
+      case ENEMY_STATE.SHOOT:
+        this.animator.setAnimation(animations["enemy_2_shoot"], {
+          speed: 200,
+          loop: false,
+        });
+        break;
+      case ENEMY_STATE.HIT:
+        this.animator.setAnimation(animations["enemy_2_hit"], {
+          speed: 200,
+          loop: false,
+        });
+        break;
+    }
+  }
+}
+
 const angleBetweenVectors = (v1, v2) => Math.atan2(v2.y - v1.y, v2.x - v1.x);
 
 const keysPressed = {};
@@ -335,19 +566,135 @@ document.addEventListener("keydown", function (e) {
 (async () => {
   let loaded = false;
   try {
-    sprites["wall_h"] = await loadSprite("./assets/wall_h.png");
-    sprites["wall_v"] = await loadSprite("./assets/wall_v.png");
-    sprites["brick_wall_h"] = await loadSprite("./assets/brick_wall_h.png");
-    sprites["brick_wall_v"] = await loadSprite("./assets/brick_wall_v.png");
-    sprites["eagle_h"] = await loadSprite("./assets/eagle_h.png");
-    sprites["eagle_v"] = await loadSprite("./assets/eagle_v.png");
+    textures["wall_h"] = await loadTexture("./assets/wall_h.png");
+    textures["wall_v"] = await loadTexture("./assets/wall_v.png");
+    textures["brick_wall_h"] = await loadTexture("./assets/brick_wall_h.png");
+    textures["brick_wall_v"] = await loadTexture("./assets/brick_wall_v.png");
+    textures["eagle_h"] = await loadTexture("./assets/eagle_h.png");
+    textures["eagle_v"] = await loadTexture("./assets/eagle_v.png");
+
+    sprites["enemy_2"] = await loadSprite(
+      "./assets/enemy_2.png",
+      8,
+      7,
+      64,
+      64,
+      1,
+      1
+    );
+
+    animations["enemy_2_idle_s"] = createAnimation(sprites["enemy_2"], [
+      [0, 0],
+    ]);
+
+    animations["enemy_2_idle_sw"] = createAnimation(sprites["enemy_2"], [
+      [1, 0],
+    ]);
+
+    animations["enemy_2_idle_w"] = createAnimation(sprites["enemy_2"], [
+      [2, 0],
+    ]);
+
+    animations["enemy_2_idle_nw"] = createAnimation(sprites["enemy_2"], [
+      [3, 0],
+    ]);
+
+    animations["enemy_2_idle_n"] = createAnimation(sprites["enemy_2"], [
+      [4, 0],
+    ]);
+
+    animations["enemy_2_idle_ne"] = createAnimation(sprites["enemy_2"], [
+      [5, 0],
+    ]);
+
+    animations["enemy_2_idle_e"] = createAnimation(sprites["enemy_2"], [
+      [6, 0],
+    ]);
+
+    animations["enemy_2_idle_se"] = createAnimation(sprites["enemy_2"], [
+      [7, 0],
+    ]);
+
+    animations["enemy_2_walk_s"] = createAnimation(sprites["enemy_2"], [
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [0, 4],
+    ]);
+
+    animations["enemy_2_walk_sw"] = createAnimation(sprites["enemy_2"], [
+      [1, 1],
+      [1, 2],
+      [1, 3],
+      [1, 4],
+    ]);
+
+    animations["enemy_2_walk_w"] = createAnimation(sprites["enemy_2"], [
+      [2, 1],
+      [2, 2],
+      [2, 3],
+      [2, 4],
+    ]);
+
+    animations["enemy_2_walk_nw"] = createAnimation(sprites["enemy_2"], [
+      [3, 1],
+      [3, 2],
+      [3, 3],
+      [3, 4],
+    ]);
+
+    animations["enemy_2_walk_n"] = createAnimation(sprites["enemy_2"], [
+      [4, 1],
+      [4, 2],
+      [4, 3],
+      [4, 4],
+    ]);
+
+    animations["enemy_2_walk_ne"] = createAnimation(sprites["enemy_2"], [
+      [5, 1],
+      [5, 2],
+      [5, 3],
+      [5, 4],
+    ]);
+
+    animations["enemy_2_walk_e"] = createAnimation(sprites["enemy_2"], [
+      [6, 1],
+      [6, 2],
+      [6, 3],
+      [6, 4],
+    ]);
+
+    animations["enemy_2_walk_se"] = createAnimation(sprites["enemy_2"], [
+      [7, 1],
+      [7, 2],
+      [7, 3],
+      [7, 4],
+    ]);
+
+    animations["enemy_2_alert"] = createAnimation(sprites["enemy_2"], [[0, 6]]);
+
+    animations["enemy_2_hit"] = createAnimation(sprites["enemy_2"], [[7, 5]]);
+
+    animations["enemy_2_shoot"] = createAnimation(sprites["enemy_2"], [
+      [1, 6],
+      [2, 6],
+    ]);
+
+    animations["enemy_2_death"] = createAnimation(sprites["enemy_2"], [
+      [0, 5],
+      [1, 5],
+      [2, 5],
+      [3, 5],
+      [4, 5],
+    ]);
+
     loaded = true;
   } catch (e) {
     console.log(e);
   }
 
   if (loaded) {
-    console.log(sprites);
+    enemy = new Enemy1();
     tick();
   } else {
     console.log("not loaded");
