@@ -28,9 +28,9 @@ const grid = [
     [3, 0, 1, 2, 1, 1, 0, 0, 0, 3],
     [3, 0, 0, 0, 0, 1, 0, 0, 0, 2],
     [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
-    [3, 0, 0, 0, 0, 0, 1, 0, 0, 3],
-    [3, 0, 0, 1, 2, 1, 1, 1, 0, 3],
-    [3, 0, 0, 0, 0, 0, 1, 0, 0, 3],
+    [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+    [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+    [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
     [3, 0, 0, 0, 0, 0, 0, 0, 0, 3],
     [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
 ];
@@ -59,7 +59,7 @@ const ENEMY_STATE = {
   SHOOT: 6,
 };
 
-let enemy;
+const enemies = [];
 
 function update(dt) {
   const radians = degToRad(viewAngle);
@@ -77,26 +77,6 @@ function update(dt) {
     viewAngle = (viewAngle + TURN_SPEED * dt + 360) % 360;
   }
 
-  if (keysPressed["KeyT"]) {
-    enemy.setState(ENEMY_STATE.IDLE);
-  }
-
-  if (keysPressed["KeyY"]) {
-    enemy.setState(ENEMY_STATE.ALERT);
-  }
-
-  if (keysPressed["KeyU"]) {
-    enemy.setState(ENEMY_STATE.SHOOT);
-  }
-
-  if (keysPressed["KeyI"]) {
-    enemy.setState(ENEMY_STATE.HIT);
-  }
-
-  if (keysPressed["KeyO"]) {
-    enemy.setState(ENEMY_STATE.DEATH);
-  }
-
   if (keysPressed["KeyW"]) {
     moveDirection = 1;
   } else if (keysPressed["KeyS"]) {
@@ -104,8 +84,6 @@ function update(dt) {
   }
 
   if (moveDirection !== 0) {
-    enemy.setState(ENEMY_STATE.WALK);
-
     const newPosX =
       playerPos.x + moveDirection * viewDirection.x * PLAYER_SPEED * dt;
     const newPosY =
@@ -126,7 +104,9 @@ function update(dt) {
     }
   }
 
-  enemy.update();
+  for (const enemy of enemies) {
+    enemy.update();
+  }
 }
 
 function render() {
@@ -149,39 +129,6 @@ function render() {
     }
   }
 
-  // ctx.strokeStyle = "#555";
-  // ctx.beginPath();
-  // for (let y = 0; y < GRID_SIZE.y; y++) {
-  //   for (let x = 0; x < GRID_SIZE.x; x++) {
-  //     ctx.moveTo(x * TILE_SIZE, 0);
-  //     ctx.lineTo(x * TILE_SIZE, GRID_SIZE.y * TILE_SIZE);
-
-  //     ctx.moveTo(0, y * TILE_SIZE);
-  //     ctx.lineTo(GRID_SIZE.x * TILE_SIZE, y * TILE_SIZE);
-  //   }
-  // }
-  // ctx.closePath();
-  // ctx.stroke();
-
-  // var grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  // grd.addColorStop(0, "red");
-  // grd.addColorStop(0.5, "white");
-  // grd.addColorStop(1, "red");
-
-  // ctx.fillStyle = grd;
-  // ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height);
-
-  // view ray
-  // ctx.strokeStyle = "#0f0";
-  // ctx.beginPath();
-  // ctx.moveTo(playerPos.x, playerPos.y);
-  // ctx.lineTo(
-  //   playerPos.x + viewDirection.x * MAX_VIEW_DISTANCE,
-  //   playerPos.y + viewDirection.y * MAX_VIEW_DISTANCE
-  // );
-  // ctx.closePath();
-  // ctx.stroke();
-
   ctx.fillStyle = "#383838";
   ctx.fillRect(canvas.width / 2, 0, canvas.width / 2, canvas.height / 2);
   ctx.fillStyle = "#707070";
@@ -202,7 +149,7 @@ function render() {
 
     const hit = castRay(rayDirection);
 
-    ctx.strokeStyle = "#f006";
+    ctx.strokeStyle = "#f602";
     ctx.beginPath();
     ctx.moveTo(playerPos.x, playerPos.y);
     ctx.lineTo(
@@ -276,20 +223,24 @@ function render() {
   ctx.closePath();
   ctx.fill();
 
-  enemy.render(640, -20, 640, 640);
+  for (const enemy of enemies) {
+    enemy.render(640, -20, 640, 640);
+  }
 }
 
 function degToRad(deg) {
   return (Math.PI / 180) * deg;
 }
 
+function radToDeg(rad) {
+  return (rad * 180) / Math.PI;
+}
+
 function castRay(direction) {
-  // x difference for every 1 of y
-  // prettier-ignore
-  const dx = (direction.y == 0) ? 0 : ((direction.x == 0) ? 1 : Math.abs(1 / direction.x));
-  // y difference for every 1 of x
-  // prettier-ignore
-  const dy = (direction.x == 0) ? 0 : ((direction.y == 0) ? 1 : Math.abs(1 / direction.y));
+  const dx =
+    direction.y == 0 ? 0 : direction.x == 0 ? 1 : Math.abs(1 / direction.x);
+  const dy =
+    direction.x == 0 ? 0 : direction.y == 0 ? 1 : Math.abs(1 / direction.y);
 
   let distanceX = 0;
   let distanceY = 0;
@@ -415,7 +366,13 @@ class Animator {
     this.loop = false;
   }
 
-  setAnimation(animation, options = {}) {
+  setAnimation(animationName, options = {}) {
+    const animation = animations[animationName];
+    if (!animation) {
+      console.trace(animationName, options);
+      return;
+    }
+
     const { speed = 1000, loop = true, reset = true } = options;
 
     this.animation = animation;
@@ -458,56 +415,65 @@ class Animator {
 }
 
 class Enemy1 {
-  constructor() {
-    this.setState(ENEMY_STATE.IDLE);
-
+  constructor(pos, dir, initialState = ENEMY_STATE.IDLE) {
     this.animator = new Animator();
-    this.animator.setAnimation(animations["enemy_2_death"], {
-      speed: 200,
-      loop: false,
-    });
+
+    this.setState(initialState);
+
+    this.pos = { ...pos };
+    this.dir = { ...dir };
   }
 
   update() {
+    const angle = radToDeg(
+      angleBetweenVectors(this.dir, {
+        x: this.pos.x - playerPos.x,
+        y: this.pos.y - playerPos.y,
+      })
+    );
+
+    const dir = Math.floor(((angle + 22.5 + 360) % 360) / 45);
+
     let d;
-    switch (Math.floor(((viewAngle + 22.5 + 360) % 360) / 45)) {
-      case 0:
+    switch (dir) {
+      case 6:
         d = "e";
         break;
+      case 7:
+        d = "ne";
+        break;
+      case 0:
+        d = "n";
+        break;
       case 1:
-        d = "se";
+        d = "nw";
         break;
       case 2:
-        d = "s";
+        d = "w";
         break;
       case 3:
         d = "sw";
         break;
       case 4:
-        d = "w";
+        d = "s";
         break;
       case 5:
-        d = "nw";
+        d = "se";
         break;
-      case 6:
-        d = "n";
-        break;
-      case 7:
-        d = "ne";
-        break;
+
       default:
         d = "s";
     }
 
     switch (this.state) {
       case ENEMY_STATE.WALK:
-        this.animator.setAnimation(animations["enemy_2_walk_" + d], {
+        this.animator.setAnimation("enemy_2_walk_" + d, {
           speed: 200,
           reset: false,
         });
         break;
       case ENEMY_STATE.IDLE:
-        this.animator.setAnimation(animations["enemy_2_idle_" + d], {
+        this.animator.setAnimation("enemy_2_idle_" + d, {
           speed: 200,
           reset: false,
         });
@@ -517,8 +483,49 @@ class Enemy1 {
     this.animator.update();
   }
 
-  render(x, y, w, h) {
-    this.animator.render(x, y, w, h);
+  render() {
+    ctx.strokeStyle = "blue";
+    ctx.beginPath();
+    ctx.moveTo(this.pos.x, this.pos.y);
+    ctx.lineTo(this.pos.x + this.dir.x * 32, this.pos.y + this.dir.y * 32);
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, 10, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+
+    const angle = degToRad(viewAngle);
+    const viewDirection = {
+      x: Math.cos(angle),
+      y: Math.sin(angle),
+    };
+
+    const directionToEnemy = normalizeVector({
+      x: this.pos.x - playerPos.x,
+      y: this.pos.y - playerPos.y,
+    });
+
+    const theta = angleBetweenVectors(viewDirection, directionToEnemy);
+
+    if (Math.abs(theta) < degToRad((FOV + 10) / 2)) {
+      const dx = this.pos.x - playerPos.x;
+      const dy = this.pos.y - playerPos.y;
+
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const scale = 640 / distance;
+      const w = 64 * scale;
+      const h = 64 * scale;
+
+      const xFactor = theta / degToRad(FOV / 2);
+
+      const x = 640 + 320 + 320 * xFactor - w / 2;
+      const y = 320 - h / 2;
+
+      this.animator.render(x, y, w, h);
+    }
   }
 
   setState(state) {
@@ -526,25 +533,25 @@ class Enemy1 {
 
     switch (state) {
       case ENEMY_STATE.ALERT:
-        this.animator.setAnimation(animations["enemy_2_alert"], {
+        this.animator.setAnimation("enemy_2_alert", {
           speed: 200,
           loop: false,
         });
         break;
       case ENEMY_STATE.DEATH:
-        this.animator.setAnimation(animations["enemy_2_death"], {
+        this.animator.setAnimation("enemy_2_death", {
           speed: 200,
           loop: false,
         });
         break;
       case ENEMY_STATE.SHOOT:
-        this.animator.setAnimation(animations["enemy_2_shoot"], {
+        this.animator.setAnimation("enemy_2_shoot", {
           speed: 200,
           loop: false,
         });
         break;
       case ENEMY_STATE.HIT:
-        this.animator.setAnimation(animations["enemy_2_hit"], {
+        this.animator.setAnimation("enemy_2_hit", {
           speed: 200,
           loop: false,
         });
@@ -553,7 +560,21 @@ class Enemy1 {
   }
 }
 
-const angleBetweenVectors = (v1, v2) => Math.atan2(v2.y - v1.y, v2.x - v1.x);
+const angleBetweenVectors = (v1, v2) => {
+  var a2 = Math.atan2(v1.y, v1.x);
+  var a1 = Math.atan2(v2.y, v2.x);
+  var sign = a1 > a2 ? 1 : -1;
+  var angle = a1 - a2;
+  var K = -sign * Math.PI * 2;
+  var angle = Math.abs(K + angle) < Math.abs(angle) ? K + angle : angle;
+
+  return angle;
+};
+
+const normalizeVector = (v) => {
+  const m = Math.sqrt(v.x * v.x + v.y * v.y);
+  return { x: v.x / m, y: v.y / m };
+};
 
 const keysPressed = {};
 document.addEventListener("keyup", function (e) {
@@ -694,7 +715,18 @@ document.addEventListener("keydown", function (e) {
   }
 
   if (loaded) {
-    enemy = new Enemy1();
+    enemies.push(new Enemy1({ x: 100, y: 100 }, { x: 0, y: 1 }));
+
+    enemies.push(new Enemy1({ x: 200, y: 300 }, { x: 0, y: 1 }));
+    enemies.push(new Enemy1({ x: 300, y: 300 }, { x: 0, y: 1 }));
+    enemies.push(new Enemy1({ x: 400, y: 300 }, { x: 0, y: 1 }));
+    enemies.push(new Enemy1({ x: 500, y: 300 }, { x: 0, y: 1 }));
+
+    enemies.push(new Enemy1({ x: 250, y: 500 }, { x: 0, y: -1 }));
+    enemies.push(new Enemy1({ x: 350, y: 500 }, { x: 0, y: -1 }));
+    enemies.push(new Enemy1({ x: 450, y: 500 }, { x: 0, y: -1 }));
+    enemies.push(new Enemy1({ x: 550, y: 500 }, { x: 0, y: -1 }));
+
     tick();
   } else {
     console.log("not loaded");
