@@ -3,7 +3,7 @@ const ctx = canvas.getContext("2d");
 
 const GRID_SIZE = { x: 10, y: 10 };
 const TILE_SIZE = 64;
-const RESOLUTION = 200;
+const RESOLUTION = 320;
 const STRIP_WIDTH = (GRID_SIZE.x * TILE_SIZE) / RESOLUTION;
 
 const PLAYER_SPEED = 150;
@@ -20,6 +20,9 @@ ctx.imageSmoothingEnabled = false;
 const textures = {};
 const sprites = {};
 const animations = {};
+
+let hideClipping = true;
+let usePerpDist = false;
 
 const hitsBuffer = new Array(RESOLUTION);
 
@@ -38,7 +41,7 @@ const grid = [
 ];
 
 const playerPos = { x: 110, y: 540 };
-let viewAngle = -45;
+let viewAngle = -70;
 
 let lastFrameTime = Date.now();
 function tick() {
@@ -77,6 +80,16 @@ function update(dt) {
 
   if (keysPressed["KeyD"]) {
     viewAngle = (viewAngle + TURN_SPEED * dt + 360) % 360;
+  }
+
+  if (keysPressed["KeyM"]) {
+    keysPressed["KeyM"] = false;
+    hideClipping = !hideClipping;
+  }
+
+  if (keysPressed["KeyK"]) {
+    keysPressed["KeyK"] = false;
+    usePerpDist = !usePerpDist;
   }
 
   if (keysPressed["KeyW"]) {
@@ -240,7 +253,7 @@ function render() {
   ctx.fill();
 
   for (const enemy of enemies) {
-    enemy.render(640, -20, 640, 640);
+    enemy.render();
   }
 }
 
@@ -434,6 +447,25 @@ class Animator {
       h
     );
   }
+
+  getCurrentSprite() {
+    if (!this.animation) return;
+
+    const sprite = this.animation.sprite;
+
+    const offsetX =
+      this.animation.frames[this.currentFrame % this.totalFrames][0];
+    const offsetY =
+      this.animation.frames[this.currentFrame % this.totalFrames][1];
+
+    const image = sprite.img;
+    const sx = offsetX * sprite.sizeX + offsetX * sprite.gapX;
+    const sy = offsetY * sprite.sizeY + offsetY * sprite.gapY;
+    const sWidth = sprite.sizeX;
+    const sHeight = sprite.sizeY;
+
+    return { image, sx, sy, sWidth, sHeight };
+  }
 }
 
 class Enemy1 {
@@ -525,6 +557,11 @@ class Enemy1 {
       y: Math.sin(angle),
     };
 
+    const distanceToPlayer = Math.sqrt(
+      Math.pow(this.pos.x - playerPos.x, 2) +
+        Math.pow(this.pos.y - playerPos.y, 2)
+    );
+
     const directionToEnemy = normalizeVector({
       x: this.pos.x - playerPos.x,
       y: this.pos.y - playerPos.y,
@@ -532,21 +569,72 @@ class Enemy1 {
 
     const theta = angleBetweenVectors(viewDirection, directionToEnemy);
 
-    if (Math.abs(theta) < degToRad((FOV + 10) / 2)) {
-      const dx = this.pos.x - playerPos.x;
-      const dy = this.pos.y - playerPos.y;
+    const dx = this.pos.x - playerPos.x;
+    const dy = this.pos.y - playerPos.y;
 
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const scale = 640 / distance;
-      const w = 64 * scale;
-      const h = 64 * scale;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const scale = 640 / distance;
+    const w = 64 * scale;
+    const h = 64 * scale;
 
-      const xFactor = theta / degToRad(FOV / 2);
+    const xFactor = theta / degToRad(FOV / 2);
 
-      const x = 640 + 320 + 320 * xFactor - w / 2;
-      const y = 320 - h / 2;
+    const x = 320 + 320 * xFactor - w / 2;
+    const y = 320 - h / 2;
 
-      this.animator.render(x, y, w, h);
+    const spriteStartX = Math.floor(x / STRIP_WIDTH);
+    const spriteEndX = Math.floor((x + w) / STRIP_WIDTH);
+
+    let startX = Math.floor(spriteStartX);
+    if (startX < 0) startX = 0;
+
+    let endX = Math.floor((x + w) / STRIP_WIDTH);
+    if (endX > RESOLUTION - 1) endX = RESOLUTION - 1;
+
+    if (startX >= RESOLUTION) {
+      return;
+    }
+
+    if (endX < 0) {
+      return;
+    }
+
+    const sd = this.animator.getCurrentSprite();
+
+    // ctx.drawImage(
+    //   sd.image,
+    //   sd.sx,
+    //   sd.sy,
+    //   sd.sWidth,
+    //   sd.sHeight,
+    //   640 + x,
+    //   y,
+    //   w,
+    //   h
+    // );
+
+    ctx.fillStyle = "#fff7";
+    for (let i = startX; i < endX; i++) {
+      const sampleX = Math.floor(
+        ((i - spriteStartX) / (spriteEndX - spriteStartX)) * sd.sWidth
+      );
+      if (
+        !hideClipping ||
+        distanceToPlayer <
+          hitsBuffer[i][usePerpDist ? "distanceP" : "distance"] * TILE_SIZE
+      ) {
+        ctx.drawImage(
+          sd.image,
+          sd.sx + sampleX,
+          sd.sy,
+          1,
+          sd.sHeight,
+          640 + i * STRIP_WIDTH,
+          y,
+          STRIP_WIDTH,
+          h
+        );
+      }
     }
   }
 
@@ -739,15 +827,18 @@ document.addEventListener("keydown", function (e) {
   if (loaded) {
     enemies.push(new Enemy1({ x: 100, y: 100 }, { x: 0, y: 1 }));
 
-    enemies.push(new Enemy1({ x: 200, y: 300 }, { x: 0, y: 1 }));
-    enemies.push(new Enemy1({ x: 300, y: 300 }, { x: 0, y: 1 }));
-    enemies.push(new Enemy1({ x: 400, y: 300 }, { x: 0, y: 1 }));
-    enemies.push(new Enemy1({ x: 500, y: 300 }, { x: 0, y: 1 }));
+    // enemies.push(new Enemy1({ x: 200, y: 300 }, { x: 0, y: 1 }));
+    // enemies.push(new Enemy1({ x: 300, y: 300 }, { x: 0, y: 1 }));
+    // enemies.push(new Enemy1({ x: 400, y: 300 }, { x: 0, y: 1 }));
+    // enemies.push(new Enemy1({ x: 500, y: 300 }, { x: 0, y: 1 }));
 
-    enemies.push(new Enemy1({ x: 250, y: 500 }, { x: 0, y: -1 }));
-    enemies.push(new Enemy1({ x: 350, y: 500 }, { x: 0, y: -1 }));
-    enemies.push(new Enemy1({ x: 450, y: 500 }, { x: 0, y: -1 }));
-    enemies.push(new Enemy1({ x: 550, y: 500 }, { x: 0, y: -1 }));
+    // enemies.push(new Enemy1({ x: 250, y: 500 }, { x: 0, y: -1 }));
+    // enemies.push(new Enemy1({ x: 350, y: 500 }, { x: 0, y: -1 }));
+    // enemies.push(new Enemy1({ x: 450, y: 500 }, { x: 0, y: -1 }));
+    // enemies.push(new Enemy1({ x: 550, y: 500 }, { x: 0, y: -1 }));
+
+    enemies.push(new Enemy1({ x: 500, y: 140 }, { x: 0, y: 1 }));
+    enemies.push(new Enemy1({ x: 64 * 6, y: 64 * 4.1 }, { x: 0, y: 1 }));
 
     tick();
   } else {
