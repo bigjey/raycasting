@@ -21,6 +21,8 @@ const textures = {};
 const sprites = {};
 const animations = {};
 
+const hitsBuffer = new Array(RESOLUTION);
+
 // prettier-ignore
 const grid = [
     [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
@@ -44,8 +46,8 @@ function tick() {
   const dt = t - lastFrameTime;
   lastFrameTime = t;
 
-  render();
   update(dt / 1000);
+  render();
 
   requestAnimationFrame(tick);
 }
@@ -104,6 +106,19 @@ function update(dt) {
     }
   }
 
+  for (let i = 0; i < RESOLUTION; i++) {
+    const rayAngle = degToRad((i - RESOLUTION / 2) * (FOV / RESOLUTION));
+
+    const rayDirection = {
+      x: Math.cos(degToRad(viewAngle) + rayAngle),
+      y: Math.sin(degToRad(viewAngle) + rayAngle),
+    };
+
+    const beta = degToRad((i - RESOLUTION / 2) * (FOV / RESOLUTION));
+
+    hitsBuffer[i] = castRay(rayDirection, beta);
+  }
+
   for (const enemy of enemies) {
     enemy.update();
   }
@@ -140,14 +155,7 @@ function render() {
   );
 
   for (let i = 0; i < RESOLUTION; i++) {
-    const rayAngle = degToRad((i - RESOLUTION / 2) * (FOV / RESOLUTION));
-
-    const rayDirection = {
-      x: Math.cos(degToRad(viewAngle) + rayAngle),
-      y: Math.sin(degToRad(viewAngle) + rayAngle),
-    };
-
-    const hit = castRay(rayDirection);
+    const hit = hitsBuffer[i];
 
     ctx.strokeStyle = "#f602";
     ctx.beginPath();
@@ -165,11 +173,9 @@ function render() {
     ctx.closePath();
     ctx.fill();
 
-    const beta = rayAngle;
-    const d = hit.distance * Math.cos(beta);
-
-    const wallHeight = (GRID_SIZE.y * TILE_SIZE) / d;
-    const wallColor = 255 - 255 * (d / 15) - (hit.side === "h" ? 20 : 0);
+    const wallHeight = (GRID_SIZE.y * TILE_SIZE) / hit.distanceP;
+    const wallColor =
+      255 - 255 * (hit.distanceP / 15) - (hit.side === "h" ? 20 : 0);
 
     // ctx.fillStyle = `rgb(${wallColor}, ${wallColor}, ${wallColor})`;
     // ctx.fillRect(
@@ -236,7 +242,7 @@ function radToDeg(rad) {
   return (rad * 180) / Math.PI;
 }
 
-function castRay(direction) {
+function castRay(direction, beta) {
   const dx =
     direction.y == 0 ? 0 : direction.x == 0 ? 1 : Math.abs(1 / direction.x);
   const dy =
@@ -291,7 +297,14 @@ function castRay(direction) {
       const hitX = (posX + direction.x * distance) * TILE_SIZE;
       const hitY = (posY + direction.y * distance) * TILE_SIZE;
 
-      return { x: hitX, y: hitY, distance, side, tile: grid[tileY][tileX] };
+      return {
+        x: hitX,
+        y: hitY,
+        distance: distance,
+        distanceP: distance * Math.cos(beta),
+        side,
+        tile: grid[tileY][tileX],
+      };
     }
 
     iterations++;
