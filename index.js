@@ -119,6 +119,16 @@ function update(dt) {
     hitsBuffer[i] = castRay(rayDirection, beta);
   }
 
+  enemies.sort((a, b) => {
+    const px = playerPos.x;
+    const py = playerPos.y;
+    const d1 =
+      (px - a.pos.x) * (px - a.pos.x) + (py - a.pos.y) * (py - a.pos.y);
+    const d2 =
+      (px - b.pos.x) * (px - b.pos.x) + (py - b.pos.y) * (py - b.pos.y);
+    return d2 - d1;
+  });
+
   for (const enemy of enemies) {
     enemy.update();
   }
@@ -278,7 +288,8 @@ function castRay(direction, beta) {
 
   let iterations = 0;
   let side;
-  while (!hit && iterations < 1000) {
+
+  while (iterations < 100) {
     if (distanceX < distanceY) {
       distance = distanceX;
       side = "h";
@@ -292,8 +303,6 @@ function castRay(direction, beta) {
     }
 
     if (grid[tileY][tileX] !== 0) {
-      hit = true;
-
       const hitX = (posX + direction.x * distance) * TILE_SIZE;
       const hitY = (posY + direction.y * distance) * TILE_SIZE;
 
